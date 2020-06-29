@@ -3,7 +3,7 @@
 use common;
 use reply;
 use serde_json as json;
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 use event::inner::*;
 
@@ -22,6 +22,23 @@ pub enum Event {
     ShutdownEvent(ShutdownEventInfo),
 }
 
+impl fmt::Display for Event {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::WorkspaceEvent(event) => event.fmt(f),
+            Self::WindowEvent(event) => event.fmt(f),
+            Self::OutputEvent(event) => event.fmt(f),
+            Self::ModeEvent(event) => event.fmt(f),
+            Self::BarConfigEvent(event) => event.fmt(f),
+            Self::BindingEvent(event) => event.fmt(f),
+
+            #[cfg(feature = "i3-4-14")]
+            #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+            Self::ShutdownEvent(_) => event.fmt(f),
+        }
+    }
+}
+
 /// Data for `WorkspaceEvent`.
 #[derive(Debug)]
 pub struct WorkspaceEventInfo {
@@ -33,6 +50,24 @@ pub struct WorkspaceEventInfo {
     /// Note that if the previous workspace was empty it will get destroyed when switching, but
     /// will still appear here.
     pub old: Option<reply::Node>,
+}
+
+impl fmt::Display for WorkspaceEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let current = if let Some(node) = &self.current {
+            format!("{:?} ({})", node.name, node.id)
+        } else {
+            "unknown".to_string()
+        };
+
+        let old = if let Some(node) = &self.old {
+            format!("{:?} ({})", node.name, node.id)
+        } else {
+            "unknown".to_string()
+        };
+
+        write!(f, "{:?} change from {} to {}", self.change, old, current)
+    }
 }
 
 impl FromStr for WorkspaceEventInfo {
@@ -76,6 +111,12 @@ pub struct OutputEventInfo {
     pub change: OutputChange,
 }
 
+impl fmt::Display for OutputEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} output event", self.change)
+    }
+}
+
 impl FromStr for OutputEventInfo {
     type Err = json::error::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -100,6 +141,12 @@ pub struct ModeEventInfo {
     pub change: String,
 }
 
+impl fmt::Display for ModeEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} mode", self.change)
+    }
+}
+
 impl FromStr for ModeEventInfo {
     type Err = json::error::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -119,6 +166,21 @@ pub struct WindowEventInfo {
     /// the initial name of the newly reparented window (e.g. if you run urxvt with a shell that
     /// changes the title, you will still at this point get the window title as "urxvt").
     pub container: reply::Node,
+}
+
+impl fmt::Display for WindowEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?} event for window {}; id: {}",
+            self.change,
+            self.container
+                .name
+                .as_ref()
+                .unwrap_or(&"untitled".to_string()),
+            self.container.id
+        )
+    }
 }
 
 impl FromStr for WindowEventInfo {
@@ -156,6 +218,18 @@ pub struct BarConfigEventInfo {
     pub bar_config: reply::BarConfig,
 }
 
+impl fmt::Display for BarConfigEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let bc = &self.bar_config;
+
+        write!(
+            f,
+            "bar id: {}; mode: {}; position: {}; status command: {}",
+            bc.id, bc.mode, bc.position, bc.status_command,
+        )
+    }
+}
+
 impl FromStr for BarConfigEventInfo {
     type Err = json::error::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -175,6 +249,19 @@ pub struct BindingEventInfo {
     /// that may be expanded in the future).
     pub change: BindingChange,
     pub binding: Binding,
+}
+
+impl fmt::Display for BindingEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{:?} '{}' {}+{})",
+            self.change,
+            self.binding.command,
+            self.binding.event_state_mask.join("+"),
+            self.binding.symbol.as_ref().unwrap_or(&"".to_string()),
+        )
+    }
 }
 
 impl FromStr for BindingEventInfo {
@@ -229,6 +316,14 @@ pub struct ShutdownEventInfo {
 
 #[cfg(feature = "i3-4-14")]
 #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+impl fmt::Display for ShutdownEventInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.change.fmt(f)
+    }
+}
+
+#[cfg(feature = "i3-4-14")]
+#[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
 impl FromStr for ShutdownEventInfo {
     type Err = json::error::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -245,8 +340,102 @@ impl FromStr for ShutdownEventInfo {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reply::{Node, NodeBorder, NodeLayout, NodeType};
+    use std::collections::HashMap;
+
+    fn make_node() -> Node {
+        reply::Node {
+            focus: vec![],
+            nodes: vec![],
+            floating_nodes: vec![],
+            id: 1234,
+            name: Some("Firefox".to_string()),
+            nodetype: NodeType::Root,
+            border: NodeBorder::Normal,
+            current_border_width: 2,
+            layout: NodeLayout::Stacked,
+            percent: None,
+            rect: (0, 0, 1920, 1200),
+            window_rect: (2, 0, 632, 366),
+            deco_rect: (0, 0, 0, 0),
+            geometry: (0, 0, 0, 0),
+            window: None,
+            window_properties: None,
+            urgent: false,
+            focused: true,
+
+            #[cfg(feature = "i3-4-18-1")]
+            marks: vec![],
+        }
+    }
+
+    #[test]
+    fn test_event_workspace_display() {
+        let event = Event::WorkspaceEvent(WorkspaceEventInfo {
+            change: WorkspaceChange::Empty,
+            current: None,
+            old: None,
+        });
+        assert_eq!(format!("{}", event), "Empty change from unknown to unknown");
+    }
+
+    #[test]
+    fn test_event_output_display() {
+        let event = Event::OutputEvent(OutputEventInfo {
+            change: OutputChange::Unspecified,
+        });
+        assert_eq!(format!("{}", event), "unspecified output event");
+    }
+
+    #[test]
+    fn test_event_mode_display() {
+        let event = Event::ModeEvent(ModeEventInfo {
+            change: "default".to_string(),
+        });
+        assert_eq!(format!("{}", event), "default mode");
+    }
+
+    #[test]
+    fn test_event_window_display() {
+        let event = Event::WindowEvent(WindowEventInfo {
+            change: WindowChange::Focus,
+            container: make_node(),
+        });
+        assert_eq!(
+            format!("{}", event),
+            "Focus event for window Firefox; id: 1234"
+        );
+    }
+
+    #[test]
+    fn test_event_bar_config_display() {
+        let event = Event::BarConfigEvent(BarConfigEventInfo {
+            bar_config: reply::BarConfig {
+                id: "mybar".to_string(),
+                mode: "dock".to_string(),
+                position: "top".to_string(),
+                status_command: "i3blocks".to_string(),
+                font: "Helvetica".to_string(),
+                workspace_buttons: true,
+                binding_mode_indicator: true,
+                verbose: false,
+                colors: HashMap::new(),
+            },
+        });
+        assert_eq!(
+            format!("{}", event),
+            "bar id: mybar; mode: dock; position: top; status command: i3blocks"
+        );
+    }
+}
+
 /// Less important types
 pub mod inner {
+    use std::fmt;
+
     /// The kind of workspace change.
     #[derive(Debug, PartialEq)]
     pub enum WorkspaceChange {
@@ -268,6 +457,19 @@ pub mod inner {
         Unspecified,
         /// An OutputChange we don't support yet.
         Unknown,
+    }
+
+    impl fmt::Display for OutputChange {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{}",
+                match self {
+                    Self::Unspecified => "unspecified",
+                    Self::Unknown => "unknown",
+                }
+            )
+        }
     }
 
     /// The kind of window change.
