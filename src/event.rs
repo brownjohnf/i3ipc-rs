@@ -34,7 +34,7 @@ impl fmt::Display for Event {
 
             #[cfg(feature = "i3-4-14")]
             #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
-            Self::ShutdownEvent(_) => event.fmt(f),
+            Self::ShutdownEvent(event) => event.fmt(f),
         }
     }
 }
@@ -255,7 +255,7 @@ impl fmt::Display for BindingEventInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:?} '{}' {}+{})",
+            "{:?} '{}' {}+{}",
             self.change,
             self.binding.command,
             self.binding.event_state_mask.join("+"),
@@ -318,7 +318,7 @@ pub struct ShutdownEventInfo {
 #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
 impl fmt::Display for ShutdownEventInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.change.fmt(f)
+        write!(f, "{} event", self.change)
     }
 }
 
@@ -430,6 +430,34 @@ mod tests {
             "bar id: mybar; mode: dock; position: top; status command: i3blocks"
         );
     }
+
+    #[test]
+    fn test_event_binding_display() {
+        let event = Event::BindingEvent(BindingEventInfo {
+            change: BindingChange::Run,
+            binding: Binding {
+                command: r#"[con_mark="F1"] focus"#.to_string(),
+                event_state_mask: vec!["Mod4".to_string()],
+                input_code: 0,
+                symbol: Some("F1".to_string()),
+                input_type: InputType::Keyboard,
+            },
+        });
+        assert_eq!(
+            format!("{}", event),
+            r#"Run '[con_mark="F1"] focus' Mod4+F1"#
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "i3-4-14")]
+    #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+    fn test_event_shutdown_display() {
+        let event = Event::ShutdownEvent(ShutdownEventInfo {
+            change: ShutdownChange::Restart,
+        });
+        assert_eq!(format!("{}", event), "restart event");
+    }
 }
 
 /// Less important types
@@ -540,6 +568,19 @@ pub mod inner {
         Unknown,
     }
 
+    impl fmt::Display for BindingChange {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{}",
+                match self {
+                    Self::Run => "run",
+                    Self::Unknown => "unknown",
+                }
+            )
+        }
+    }
+
     /// The kind of shutdown change.
     #[derive(Debug, PartialEq)]
     #[cfg(feature = "i3-4-14")]
@@ -549,5 +590,21 @@ pub mod inner {
         Exit,
         /// A ShutdownChange we don't support yet.
         Unknown,
+    }
+
+    #[cfg(feature = "i3-4-14")]
+    #[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+    impl fmt::Display for ShutdownChange {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "{}",
+                match self {
+                    Self::Restart => "restart",
+                    Self::Exit => "exit",
+                    Self::Unknown => "unknown",
+                }
+            )
+        }
     }
 }

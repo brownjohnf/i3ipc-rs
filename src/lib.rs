@@ -611,7 +611,7 @@ mod test {
         I3Connection::connect().unwrap().get_tree().unwrap();
 
         #[cfg(feature = "i3-4-18-1")]
-        let tree = I3Connection::connect().unwrap().get_tree().unwrap().marks;
+        I3Connection::connect().unwrap().get_tree().unwrap().marks;
     }
 
     #[test]
