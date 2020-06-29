@@ -55,13 +55,21 @@ pub struct WorkspaceEventInfo {
 impl fmt::Display for WorkspaceEventInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let current = if let Some(node) = &self.current {
-            format!("{:?} ({})", node.name, node.id)
+            format!(
+                "'{}' ({})",
+                node.name.as_ref().unwrap_or(&"?".to_string()),
+                node.id
+            )
         } else {
             "unknown".to_string()
         };
 
         let old = if let Some(node) = &self.old {
-            format!("{:?} ({})", node.name, node.id)
+            format!(
+                "'{}' ({})",
+                node.name.as_ref().unwrap_or(&"?".to_string()),
+                node.id
+            )
         } else {
             "unknown".to_string()
         };
@@ -346,13 +354,13 @@ mod tests {
     use reply::{Node, NodeBorder, NodeLayout, NodeType};
     use std::collections::HashMap;
 
-    fn make_node() -> Node {
+    fn make_node(name: Option<String>) -> Node {
         reply::Node {
             focus: vec![],
             nodes: vec![],
             floating_nodes: vec![],
             id: 1234,
-            name: Some("Firefox".to_string()),
+            name: name,
             nodetype: NodeType::Root,
             border: NodeBorder::Normal,
             current_border_width: 2,
@@ -374,12 +382,24 @@ mod tests {
 
     #[test]
     fn test_event_workspace_display() {
+        // Test the case where the nodes are None.
         let event = Event::WorkspaceEvent(WorkspaceEventInfo {
             change: WorkspaceChange::Empty,
             current: None,
             old: None,
         });
         assert_eq!(format!("{}", event), "Empty change from unknown to unknown");
+
+        // Test the case where the nodes are something.
+        let event = Event::WorkspaceEvent(WorkspaceEventInfo {
+            change: WorkspaceChange::Focus,
+            current: Some(make_node(Some("Firefox".to_string()))),
+            old: Some(make_node(Some("ViM".to_string()))),
+        });
+        assert_eq!(
+            format!("{}", event),
+            "Focus change from 'ViM' (1234) to 'Firefox' (1234)"
+        );
     }
 
     #[test]
@@ -402,7 +422,7 @@ mod tests {
     fn test_event_window_display() {
         let event = Event::WindowEvent(WindowEventInfo {
             change: WindowChange::Focus,
-            container: make_node(),
+            container: make_node(Some("Firefox".to_string())),
         });
         assert_eq!(
             format!("{}", event),
