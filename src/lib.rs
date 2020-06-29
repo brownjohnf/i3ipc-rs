@@ -325,6 +325,29 @@ pub enum Subscription {
     Shutdown,
 }
 
+#[cfg(feature = "i3-4-14")]
+#[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+pub const ALL_SUBSCRIPTIONS: [Subscription; 7] = [
+    Subscription::Workspace,
+    Subscription::Output,
+    Subscription::Mode,
+    Subscription::Window,
+    Subscription::BarConfig,
+    Subscription::Binding,
+    Subscription::Shutdown,
+];
+
+#[cfg(not(feature = "i3-4-14"))]
+#[cfg_attr(feature = "dox", doc(cfg(feature = "i3-4-14")))]
+pub const ALL_SUBSCRIPTIONS: [Subscription; 6] = [
+    Subscription::Workspace,
+    Subscription::Output,
+    Subscription::Mode,
+    Subscription::Window,
+    Subscription::BarConfig,
+    Subscription::Binding,
+];
+
 /// Abstraction over an ipc socket to i3. Handles events.
 #[derive(Debug)]
 pub struct I3EventListener {
